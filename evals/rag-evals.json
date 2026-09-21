@@ -1,0 +1,50 @@
+[
+  {
+    "question": "What healthcare system did Kuldeep build at Varpas Concepts?",
+    "expectedSource": "HIMS — Healthcare Information Management System",
+    "expectedTerms": ["HIMS", "Healthcare Information Management System"]
+  },
+  {
+    "question": "What interoperability standard did HIMS use?",
+    "expectedSource": "HIMS — Healthcare Information Management System",
+    "expectedTerms": ["HL7 FHIR R4", "FHIR R4"]
+  },
+  {
+    "question": "How did HIMS isolate data between organisations?",
+    "expectedSource": "HIMS — Healthcare Information Management System",
+    "expectedTerms": ["tenant", "isolation"]
+  },
+  {
+    "question": "What was the reported infrastructure cost outcome for HIMS?",
+    "expectedSource": "HIMS — Healthcare Information Management System",
+    "expectedTerms": ["25%", "cost"]
+  },
+  {
+    "question": "What is TrustDrive?",
+    "expectedSource": "TrustDrive — Blockchain-Based Cloud Storage",
+    "expectedTerms": ["blockchain", "document"]
+  },
+  {
+    "question": "Why does TrustDrive use IPFS?",
+    "expectedSource": "TrustDrive — Blockchain-Based Cloud Storage",
+    "expectedTerms": ["IPFS", "storage"]
+  },
+  {
+    "question": "Which tools were used for TrustDrive smart contract development?",
+    "expectedSource": "TrustDrive — Blockchain-Based Cloud Storage",
+    "expectedTerms": ["Solidity", "Hardhat"]
+  },
+  {
+    "question": "What technologies does Kuldeep use for backend development?",
+    "expectedSource": "Kuldeep Singh — Resume",
+    "expectedTerms": ["Node.js", "Express"]
+  },
+  {
+    "question": "Has Kuldeep worked with LangGraph?",
+    "expectRefusal": true
+  },
+  {
+    "question": "Have you worked at Google?",
+    "expectRefusal": true
+  }
+]

@@ -1,0 +1,44 @@
+import { describe, expect, it } from "vitest";
+import { answerPortfolioQuestion, REFUSAL } from "@/lib/chat-service";
+import type { RagIndex } from "@/lib/types";
+
+const index: RagIndex = {
+  version: 1,
+  generatedAt: "2026-01-01T00:00:00.000Z",
+  embeddingModel: "test",
+  dimensions: 2,
+  chunks: [
+    {
+      id: "hims-1",
+      sourceId: "hims",
+      sourceTitle: "HIMS",
+      heading: "Healthcare standard",
+      text: "HIMS included HL7 FHIR R4-compliant REST APIs.",
+      embedding: [1, 0],
+    },
+  ],
+};
+
+describe("portfolio answer service", () => {
+  it("returns a grounded answer and source citation", async () => {
+    const response = await answerPortfolioQuestion("Which healthcare standard?", index, {
+      embedQuery: async () => [1, 0],
+      generate: async () => ({ answer: "HIMS used HL7 FHIR R4.", model: "test-model" }),
+    });
+    expect(response.kind).toBe("answer");
+    expect(response.citations).toEqual([{ sourceId: "hims", title: "HIMS", heading: "Healthcare standard" }]);
+  });
+
+  it("refuses before generation when no material is relevant", async () => {
+    let generated = false;
+    const response = await answerPortfolioQuestion("What is the weather?", index, {
+      embedQuery: async () => [-1, 0],
+      generate: async () => {
+        generated = true;
+        return { answer: "This should never run", model: "test-model" };
+      },
+    });
+    expect(response).toEqual({ kind: "refusal", answer: REFUSAL, citations: [] });
+    expect(generated).toBe(false);
+  });
+});

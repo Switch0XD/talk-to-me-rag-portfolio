@@ -1,0 +1,41 @@
+{
+  "name": "hirestella-talk-to-me",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "ingest": "tsx scripts/ingest.ts",
+    "eval:rag": "tsx scripts/eval-rag.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@next/env": "^16.3.5",
+    "@google/genai": "^2.23.0",
+    "mammoth": "^1.12.3",
+    "next": "^16.3.5",
+    "pdf-parse": "^2.4.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.3.5",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5.0.0",
+    "vitest": "^5.0.1"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "documents": [
+    {
+      "path": "content/source/kuldeep-singh-resume.md",
+      "title": "Kuldeep Singh — Resume"
+    },
+    {
+      "path": "hims-project-writeup.md",
+      "title": "HIMS — Healthcare Information Management System"
+    },
+    {
+      "path": "trustdrive-project-writeup.md",
+      "title": "TrustDrive — Blockchain-Based Cloud Storage"
+    },
+    {
+      "path": "content/source/portfolio-faq.md",
+      "title": "Portfolio FAQ"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+.env
+.env.local
+.env.*.local
+!.env.example
+next-env.d.ts
+
+# The original supplied CV includes a phone number. The public-safe Markdown
+# version in content/source is the corpus source committed with this portfolio.
+Kuldeep_Singh_Resume_js.pdf
+
+# Google service-account credentials
+*-service-account.json
+gen-lang-client-0257768983-8ced29854bd3.json
