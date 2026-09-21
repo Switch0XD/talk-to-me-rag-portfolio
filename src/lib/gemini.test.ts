@@ -37,4 +37,24 @@ describe("Gemini fallback", () => {
     );
     expect(response).toBe("Groq grounded response");
   });
+
+  it("keeps trying providers in order until one answers", async () => {
+    const calls: string[] = [];
+    const response = await withProviderFallback(
+      async () => { calls.push("gemini"); throw Object.assign(new Error("credits"), { status: 402 }); },
+      async () => { calls.push("groq"); throw Object.assign(new Error("rate limited"), { status: 429 }); },
+      async () => { calls.push("openrouter"); return "OpenRouter answer"; },
+    );
+    expect(response).toBe("OpenRouter answer");
+    expect(calls).toEqual(["gemini", "groq", "openrouter"]);
+  });
+
+  it("reports every provider status when all of them fail", async () => {
+    await expect(
+      withProviderFallback(
+        async () => { throw Object.assign(new Error("a"), { status: 402 }); },
+        async () => { throw Object.assign(new Error("b"), { status: 429 }); },
+      ),
+    ).rejects.toThrow("402/429");
+  });
 });

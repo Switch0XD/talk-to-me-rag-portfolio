@@ -5,6 +5,7 @@ function config() {
     primaryModel: process.env.GEMINI_PRIMARY_MODEL || "gemini-3.5-flash-lite",
     fallbackModel: process.env.GEMINI_FALLBACK_MODEL || "gemini-3.6-flash",
     groqModel: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
+    openRouterModel: process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free",
   };
 }
 
@@ -57,21 +58,59 @@ export async function withModelFallback<T>(
   }
 }
 
-export async function withProviderFallback<T>(
-  runGemini: () => Promise<T>,
-  runGroq: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await runGemini();
-  } catch (geminiError) {
+// Tries each provider in order and returns the first success. Only when every
+// provider fails does it throw, so one rate-limited free tier never reaches the
+// visitor as an error.
+export async function withProviderFallback<T>(...providers: Array<() => Promise<T>>): Promise<T> {
+  const failures: unknown[] = [];
+  for (const run of providers) {
     try {
-      return await runGroq();
-    } catch (groqError) {
-      throw new ProviderUnavailableError(
-        `Gemini and Groq are unavailable (${providerStatus(geminiError) ?? "unknown"}/${providerStatus(groqError) ?? "unknown"}).`,
-      );
+      return await run();
+    } catch (error) {
+      failures.push(error);
     }
   }
+  throw new ProviderUnavailableError(
+    `All configured AI providers are unavailable (${failures.map((error) => providerStatus(error) ?? "unknown").join("/")}).`,
+  );
+}
+
+type ChatCompletionOptions = {
+  url: string;
+  apiKey: string | undefined;
+  missingKeyMessage: string;
+  model: string;
+  prompt: string;
+  maxTokens: number;
+  extraHeaders?: Record<string, string>;
+};
+
+// Groq and OpenRouter both speak the OpenAI chat-completions protocol.
+async function chatCompletion({ url, apiKey, missingKeyMessage, model, prompt, maxTokens, extraHeaders }: ChatCompletionOptions) {
+  if (!apiKey) throw new ProviderUnavailableError(missingKeyMessage);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      ...extraHeaders,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.01,
+      max_tokens: maxTokens,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw Object.assign(new Error(`${new URL(url).host} request failed: ${detail}`), { status: response.status });
+  }
+  const data = (await response.json()) as { choices?: Array<{ message?: { content?: string | null } }> };
+  const answer = data.choices?.[0]?.message?.content?.trim();
+  if (!answer) throw new ProviderUnavailableError(`${new URL(url).host} returned an empty answer.`);
+  return { answer, model };
 }
 
 export async function generateGroundedAnswer(prompt: string) {
@@ -92,32 +131,25 @@ export async function generateGroundedAnswer(prompt: string) {
       });
       return { answer: response.result, model: response.model };
     },
-    async () => {
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) throw new ProviderUnavailableError("The Groq fallback has not been configured.");
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: config().groqModel,
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.01,
-          max_completion_tokens: 350,
-        }),
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (!response.ok) {
-        const detail = await response.text();
-        const error = Object.assign(new Error(`Groq request failed: ${detail}`), { status: response.status });
-        throw error;
-      }
-      const data = (await response.json()) as { choices?: Array<{ message?: { content?: string | null } }> };
-      const answer = data.choices?.[0]?.message?.content?.trim();
-      if (!answer) throw new ProviderUnavailableError("Groq returned an empty answer.");
-      return { answer, model: config().groqModel };
-    },
+    () =>
+      chatCompletion({
+        url: "https://api.groq.com/openai/v1/chat/completions",
+        apiKey: process.env.GROQ_API_KEY,
+        missingKeyMessage: "The Groq fallback has not been configured.",
+        model: config().groqModel,
+        prompt,
+        maxTokens: 350,
+      }),
+    () =>
+      chatCompletion({
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        apiKey: process.env.OPENROUTER_API_KEY,
+        missingKeyMessage: "The OpenRouter fallback has not been configured.",
+        model: config().openRouterModel,
+        prompt,
+        // Reasoning models spend part of this budget thinking before they answer.
+        maxTokens: 700,
+        extraHeaders: { "X-Title": "HireStella portfolio assistant" },
+      }),
   );
 }

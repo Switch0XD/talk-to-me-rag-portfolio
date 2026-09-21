@@ -5,7 +5,7 @@ A mobile-first personal portfolio for Kuldeep Singh with a genuine, small-corpus
 ## Stack and design choices
 
 - **App and hosting:** Next.js App Router, TypeScript, Tailwind CSS, and Vercel Hobby.
-- **Generation:** Gemini `gemini-3.5-flash-lite`, retrying eligible 429/5xx requests with `gemini-3.6-flash`, then falling back to Groq `openai/gpt-oss-20b` for any remaining Gemini failure.
+- **Generation:** Gemini `gemini-3.5-flash-lite`, retrying eligible 429/5xx requests with `gemini-3.6-flash`, then falling back to Groq `openai/gpt-oss-20b`, then to an OpenRouter free model (`OPENROUTER_MODEL`, default `openai/gpt-oss-20b:free`). Each provider is tried only if the previous one failed, and providers without a key are skipped.
 - **Embeddings:** Local open-source `onnx-community/all-MiniLM-L6-v2-ONNX` at 384 dimensions, using 4-bit ONNX weights. The model runs in the Node.js route handler; it is checked in under `src/data/local-models` and makes no embedding API request.
 - **Retrieval:** a checked-in JSON vector index with in-memory cosine similarity. It is appropriate for this roughly 5–8-page corpus, avoids a paid database, and remains genuine embedding-based RAG.
 - **Chunking:** heading-aware chunks of approximately 500 tokens with an 80-token overlap. The ingestion script is deliberately independent of the web build.
@@ -18,7 +18,7 @@ A mobile-first personal portfolio for Kuldeep Singh with a genuine, small-corpus
    npm install
    ```
 
-2. Copy `.env.example` to `.env.local`. Set `GEMINI_API_KEY` and `GROQ_API_KEY` for answer generation. Embeddings run locally and require neither a key nor a cloud account. Do not prefix secrets with `NEXT_PUBLIC_` or commit them.
+2. Copy `.env.example` to `.env.local`. Set `GEMINI_API_KEY`, `GROQ_API_KEY` and (optionally) `OPENROUTER_API_KEY` for answer generation. Embeddings run locally and require neither a key nor a cloud account. Do not prefix secrets with `NEXT_PUBLIC_` or commit them.
 
 3. Rebuild the index from the source documents:
 
@@ -55,7 +55,7 @@ The eval command runs 15 questions against the live RAG pipeline: source selecti
 ## Deploy to Vercel
 
 1. Push this repository to GitHub and import it into a personal Vercel Hobby project.
-2. Add `GEMINI_API_KEY` and `GROQ_API_KEY` to Vercel for both Preview and Production. No Vertex variables or service-account JSON are needed. Optionally add the answer-model and relevance-threshold variables shown in `.env.example`.
+2. Add `GEMINI_API_KEY`, `GROQ_API_KEY` and `OPENROUTER_API_KEY` to Vercel for both Preview and Production. No Vertex variables or service-account JSON are needed. Optionally add the answer-model and relevance-threshold variables shown in `.env.example`.
 3. Run `npm run ingest` locally and commit the generated `src/data/rag-index.json` before deploying. Vercel serves the prebuilt index; it does not ingest private documents during a production build.
 4. Deploy, then test the public URL in an incognito window, including a supported project question, `Have you worked at Google?`, and a question unrelated to the portfolio (both should refuse). Confirm the first request after a cold start still answers, since the local embedding model loads on demand.
 
@@ -73,4 +73,4 @@ Every question goes through retrieval. If the best chunk scores below the releva
 - **The refusal heuristics are lexical.** The lexical boost, the "explicitly undocumented" check and the 0.32 threshold were tuned by hand against a small corpus and the eval set. Re-run `npm run eval:rag` and re-tune whenever the corpus grows.
 - **Local embedding model size.** The checked-in ONNX model adds roughly 55 MB to the repository and server function, trading deployment size and cold-start time for zero embedding cost and no embedding rate limits.
 - **Corpus size.** The corpus is about 2,900 words (CV, two project write-ups, FAQ), at the small end of the suggested range.
-- **Groq is used only for answer generation**, as a fallback when both Gemini models fail.
+- **Groq and OpenRouter are used only for answer generation**, as fallbacks when the provider before them fails. OpenRouter's free model list and daily cap change, so check `OPENROUTER_MODEL` before relying on it.
