@@ -3,9 +3,9 @@ import { embedText } from "@/lib/local-embeddings";
 import { citationsFor, retrieve } from "@/lib/rag";
 import type { ChatResponse, RagChunk, RagIndex } from "@/lib/types";
 
-// all-MiniLM-L6-v2 scores this small corpus lower than the previous Vertex
-// model. 0.32 admits directly supported HIMS facts while rejecting unrelated
-// questions (the weather fixture scores 0.14).
+// The local retriever combines MiniLM cosine similarity with a small lexical
+// boost. 0.32 admits supported portfolio facts while rejecting unrelated
+// questions.
 const DEFAULT_RELEVANCE_THRESHOLD = 0.32;
 const REFUSAL = "I don’t have enough information in Kuldeep’s portfolio materials to answer that reliably.";
 
@@ -22,6 +22,29 @@ const productionDependencies: ChatDependencies = {
 function relevanceThreshold(): number {
   const parsed = Number(process.env.RAG_RELEVANCE_THRESHOLD);
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : DEFAULT_RELEVANCE_THRESHOLD;
+}
+
+const PORTFOLIO_INTENT_PATTERN =
+  /\b(?:backend|companies|company|contact|developer|education|experience|frontend|full[-\s]?stack|healthcare|hims|job|jobs|portfolio|projects?|resume|skills?|studied|study|technologies|trustdrive|university|work|worked)\b/iu;
+const PROJECT_FOCUSED_PATTERN =
+  /\b(?:app\s+engine|blockchain|fhir|gcp|hardhat|healthcare\s+information\s+management\s+system|hims|hl7|ipfs|solidity|smart\s+contract|trustdrive)\b/iu;
+
+export function buildRetrievalQuery(question: string): string {
+  const trimmed = question.trim();
+  let rewritten = trimmed
+    .replace(/\babout\s+me\b/giu, "about Kuldeep Singh")
+    .replace(/\b(?:my|mine|your|yours|his)\b/giu, "Kuldeep Singh's")
+    .replace(/\b(?:i|you|yourself|he|him)\b/giu, "Kuldeep Singh");
+
+  if (
+    PORTFOLIO_INTENT_PATTERN.test(trimmed) &&
+    !PROJECT_FOCUSED_PATTERN.test(trimmed) &&
+    !/\b(?:kuldeep|singh)\b/iu.test(rewritten)
+  ) {
+    rewritten = `${rewritten} Kuldeep Singh`;
+  }
+
+  return rewritten;
 }
 
 function groundedPrompt(question: string, context: string): string {
@@ -43,7 +66,7 @@ ${context}`;
 }
 
 const NON_SUBJECT_TERMS = new Set([
-  "a", "an", "and", "at", "did", "do", "does", "has", "have", "he", "his", "i", "in", "is", "it", "kuldeep", "of", "on", "the", "to", "was", "what", "where", "who", "with", "work", "worked", "you",
+  "a", "an", "and", "at", "did", "do", "does", "experience", "has", "have", "he", "his", "i", "in", "is", "it", "kuldeep", "of", "on", "the", "to", "was", "what", "where", "who", "with", "work", "worked", "you",
 ]);
 
 function subjectTerms(value: string): string[] {
@@ -70,8 +93,9 @@ export async function answerPortfolioQuestion(
     return { kind: "refusal", answer: REFUSAL, citations: [] };
   }
 
-  const queryEmbedding = await dependencies.embedQuery(question);
-  const matches = retrieve(index, queryEmbedding);
+  const retrievalQuery = buildRetrievalQuery(question);
+  const queryEmbedding = await dependencies.embedQuery(retrievalQuery);
+  const matches = retrieve(index, queryEmbedding, 4, retrievalQuery);
   const bestScore = matches[0]?.score ?? 0;
   if (bestScore < relevanceThreshold()) {
     return { kind: "refusal", answer: REFUSAL, citations: [] };

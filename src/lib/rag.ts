@@ -110,9 +110,61 @@ export function cosineSimilarity(left: number[], right: number[]): number {
   return dot / Math.sqrt(leftMagnitude * rightMagnitude);
 }
 
-export function retrieve(index: RagIndex, queryEmbedding: number[], limit = 4) {
+const RETRIEVAL_STOP_TERMS = new Set([
+  "about", "after", "also", "and", "are", "been", "can", "did", "does", "for", "from", "has", "have", "his", "how",
+  "into", "kuldeep", "mine", "portfolio", "resume", "singh", "that", "the", "their", "this", "what", "when", "where",
+  "which", "who", "why", "with", "you", "your",
+]);
+
+function retrievalTerms(query: string): string[] {
+  return query.toLowerCase().match(/[\p{L}\p{N}]+/gu)?.filter((term) => term.length > 2 && !RETRIEVAL_STOP_TERMS.has(term)) || [];
+}
+
+function variantsFor(term: string): string[] {
+  const variants = new Set([term]);
+  if (term.endsWith("ies") && term.length > 4) variants.add(`${term.slice(0, -3)}y`);
+  if (term.endsWith("ed") && term.length > 4) variants.add(term.slice(0, -2));
+  if (term.endsWith("s") && term.length > 3) variants.add(term.slice(0, -1));
+  return [...variants];
+}
+
+function hasTerm(haystack: string, term: string): boolean {
+  return variantsFor(term).some((variant) => haystack.includes(variant));
+}
+
+function lexicalBoost(query: string, chunk: RagChunk): number {
+  const terms = retrievalTerms(query);
+  if (!terms.length) return 0;
+
+  const heading = `${chunk.sourceTitle} ${chunk.heading}`.toLowerCase();
+  const body = chunk.text.toLowerCase();
+  const headingMatches = terms.filter((term) => hasTerm(heading, term)).length;
+  const bodyMatches = terms.filter((term) => hasTerm(body, term)).length;
+  return (headingMatches / terms.length) * 0.16 + (bodyMatches / terms.length) * 0.12;
+}
+
+const ABSENCE_GENERIC_TERMS = new Set([
+  "assistant", "describe", "developer", "experience", "frameworks", "infer", "materials", "other", "roles", "should",
+  "supplied", "tools", "work", "worked",
+]);
+
+function absencePenalty(query: string, chunk: RagChunk): number {
+  const absenceText = `${chunk.heading} ${chunk.text}`;
+  if (!/\bportfolio\s+materials?\s+(?:do not|does not|don't|doesn't)\s+(?:describe|document|mention|include|provide|support)\b/iu.test(absenceText)) {
+    return 0;
+  }
+
+  const queryTermSet = new Set(retrievalTerms(query));
+  const specificTerms = retrievalTerms(absenceText).filter((term) => !ABSENCE_GENERIC_TERMS.has(term));
+  return specificTerms.some((term) => queryTermSet.has(term)) ? 0 : -0.3;
+}
+
+export function retrieve(index: RagIndex, queryEmbedding: number[], limit = 4, query?: string) {
   return index.chunks
-    .map((chunk) => ({ chunk, score: cosineSimilarity(queryEmbedding, chunk.embedding) }))
+    .map((chunk) => {
+      const vectorScore = cosineSimilarity(queryEmbedding, chunk.embedding);
+      return { chunk, score: vectorScore + (query ? lexicalBoost(query, chunk) + absencePenalty(query, chunk) : 0) };
+    })
     .sort((left, right) => right.score - left.score)
     .slice(0, limit);
 }

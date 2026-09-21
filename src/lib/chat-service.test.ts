@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerPortfolioQuestion, REFUSAL } from "@/lib/chat-service";
+import { answerPortfolioQuestion, buildRetrievalQuery, REFUSAL } from "@/lib/chat-service";
 import type { RagIndex } from "@/lib/types";
 
 const index: RagIndex = {
@@ -20,6 +20,13 @@ const index: RagIndex = {
 };
 
 describe("portfolio answer service", () => {
+  it("rewrites natural portfolio pronouns for retrieval", () => {
+    expect(buildRetrievalQuery("What is your experience?")).toBe("What is Kuldeep Singh's experience?");
+    expect(buildRetrievalQuery("projects")).toBe("projects Kuldeep Singh");
+    expect(buildRetrievalQuery("What interoperability standard did HIMS use?")).toBe("What interoperability standard did HIMS use?");
+    expect(buildRetrievalQuery("Tell me a joke")).toBe("Tell me a joke");
+  });
+
   it("returns a grounded answer and source citation", async () => {
     const response = await answerPortfolioQuestion("Which healthcare standard?", index, {
       embedQuery: async () => [1, 0],

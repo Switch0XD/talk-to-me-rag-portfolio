@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { answerPortfolioQuestion, REFUSAL } from "../src/lib/chat-service";
+import { answerPortfolioQuestion, buildRetrievalQuery, REFUSAL } from "../src/lib/chat-service";
 import { generateGroundedAnswer } from "../src/lib/gemini";
 import { embedTexts } from "../src/lib/local-embeddings";
 import type { RagIndex } from "../src/lib/types";
@@ -24,7 +24,7 @@ async function main() {
   const cases = JSON.parse(await readFile(path.join(root, "evals", "rag-evals.json"), "utf8")) as EvalCase[];
   if (!index.generatedAt || !index.chunks.length) throw new Error("Build the index first with npm run ingest.");
 
-  const queryEmbeddings = await embedTexts(cases.map((test) => test.question));
+  const queryEmbeddings = await embedTexts(cases.map((test) => buildRetrievalQuery(test.question)));
 
   let passed = 0;
   for (const [position, test] of cases.entries()) {

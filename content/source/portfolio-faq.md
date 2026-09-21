@@ -8,6 +8,10 @@ Kuldeep Singh is a full stack developer with more than two years of experience d
 
 Kuldeep worked on HIMS, a multi-tenant Healthcare Information Management System, and later contributed to a digital-twin platform for human health modelling at IITI Drishti CPS Foundation. The supplied material states that the latter supported deployment and validation at AIIMS Delhi; it does not provide a public product link or further product metrics.
 
+## Which projects are featured on this portfolio?
+
+The portfolio features HIMS, a multi-tenant Healthcare Information Management System, and TrustDrive, a blockchain-based cloud storage project for document ownership and sharing. The project write-ups describe the architecture, role, technology stack, and documented outcomes for each project.
+
 ## Where did Kuldeep study?
 
 Kuldeep completed a Master of Computer Application at Vellore Institute of Technology (VIT) in May 2024, with a CGPA of 8.18. He completed a Bachelor of Computer Application at MDU Rohtak in October 2020, with first division.
@@ -19,6 +23,10 @@ Kuldeep has held developer roles at IITI Drishti CPS Foundation, Varpas Concepts
 ## Has Kuldeep worked with LangGraph?
 
 The supplied portfolio materials do not describe work with LangGraph. The assistant should not infer experience with it from other AI tools or frameworks.
+
+## Has Kuldeep worked at Google?
+
+The supplied portfolio materials do not describe work at Google. The assistant should not infer Google experience from Kuldeep's other developer roles.
 
 ## What contact details are public on this portfolio?
 
