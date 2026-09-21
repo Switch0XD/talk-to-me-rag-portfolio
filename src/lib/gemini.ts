@@ -2,8 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 
 function config() {
   return {
-    primaryModel: process.env.GEMINI_PRIMARY_MODEL || "gemini-2.5-flash-lite",
-    fallbackModel: process.env.GEMINI_FALLBACK_MODEL || "gemini-2.5-flash",
+    primaryModel: process.env.GEMINI_PRIMARY_MODEL || "gemini-3.5-flash-lite",
+    fallbackModel: process.env.GEMINI_FALLBACK_MODEL || "gemini-3.6-flash",
     groqModel: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
   };
 }
@@ -34,7 +34,8 @@ export function providerStatus(error: unknown): number | undefined {
 
 export function shouldTryFallback(error: unknown): boolean {
   const status = providerStatus(error);
-  return status === 429 || (typeof status === "number" && status >= 500);
+  // 404 covers a retired model name, so the fallback model still gets a try.
+  return status === 404 || status === 429 || (typeof status === "number" && status >= 500);
 }
 
 export async function withModelFallback<T>(

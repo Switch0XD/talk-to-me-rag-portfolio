@@ -15,6 +15,10 @@ describe("Gemini fallback", () => {
     expect(result).toEqual({ result: "grounded response", model: "fallback" });
   });
 
+  it("tries the fallback model when the primary model has been retired", () => {
+    expect(shouldTryFallback(Object.assign(new Error("model not found"), { status: 404 }))).toBe(true);
+  });
+
   it("does not retry validation errors", async () => {
     const validationError = Object.assign(new Error("bad request"), { status: 400 });
     expect(shouldTryFallback(validationError)).toBe(false);

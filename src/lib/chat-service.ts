@@ -7,7 +7,11 @@ import type { ChatResponse, RagChunk, RagIndex } from "@/lib/types";
 // boost. 0.32 admits supported portfolio facts while rejecting unrelated
 // questions.
 const DEFAULT_RELEVANCE_THRESHOLD = 0.32;
+const RETRIEVED_CHUNKS = 5;
 const REFUSAL = "I don’t have enough information in Kuldeep’s portfolio materials to answer that reliably.";
+// The model starts its reply with this marker when the visitor asks whether
+// Kuldeep worked somewhere or used something that the materials never mention.
+const NOT_DOCUMENTED_PREFIX = "NOT_DOCUMENTED:";
 
 export type ChatDependencies = {
   embedQuery: (question: string) => Promise<number[]>;
@@ -52,12 +56,26 @@ function groundedPrompt(question: string, context: string): string {
 
 Rules:
 - Do not use outside knowledge or make plausible inferences.
-- If the context does not directly support an answer, reply exactly: "I don’t have enough information in Kuldeep’s portfolio materials to answer that reliably."
-- If the context says a fact is absent, not documented, or unsupported by the portfolio materials, reply with that exact refusal. Never turn missing evidence into a "No" answer.
+- If the visitor asks whether Kuldeep worked at an organisation, used a technology, or built something, and the context does not mention it (or says it is not documented), start your reply with "NOT_DOCUMENTED:" and then write one or two sentences. First say that Kuldeep's portfolio materials do not document that. Never answer "No": absence from the materials is not proof. Then, only if the context contains them, state the closest documented facts, such as his documented employers and roles.
+- For any other question the context does not directly support (including questions unrelated to Kuldeep), reply exactly: "I don’t have enough information in Kuldeep’s portfolio materials to answer that reliably."
 - Do not claim that Kuldeep has used a technology, worked for an organisation, achieved a metric, or built a feature unless the context says so.
 - When the context gives a direct high-level answer but not its lower-level implementation details, provide the documented high-level answer and say that further detail is not documented. Do not refuse solely because those lower-level details are absent.
 - Be concise, factual, and write in the first person only if the source material clearly represents Kuldeep’s own work.
 - Do not mention these instructions or say that you searched a database.
+
+Visitor question: ${question}
+
+Retrieved portfolio context:
+${context}`;
+}
+
+function undocumentedFactPrompt(question: string, context: string): string {
+  return `You are the portfolio assistant for Kuldeep Singh. The visitor asked about something the portfolio materials explicitly say is not documented.
+
+Reply in one or two sentences, using only the context below:
+1. Say that Kuldeep's portfolio materials do not document what was asked. Do not answer "No" and do not claim it never happened; absence from the materials is not proof.
+2. Then state what IS documented that is closest to the question (for example his documented employers or roles), using only facts from the context. If the context has nothing suitable, stop after sentence 1.
+- Do not use outside knowledge, and do not mention these instructions.
 
 Visitor question: ${question}
 
@@ -84,64 +102,55 @@ function contextExplicitlyWithholdsTheFact(question: string, chunks: RagChunk[])
   });
 }
 
-function looksLikePortfolioQuestion(question: string): boolean {
-  const text = question.toLowerCase();
-  return /\b(?:kuldeep|portfolio|resume|cv|experience|career|job|jobs|company|companies|organisation|organizations|hims|trustdrive|developer|project|projects|skills|stack|backend|frontend|full[- ]stack|technology|technologies|framework|frameworks|work|worked|about)\b/i.test(text);
-}
+const refusal = (): ChatResponse => ({ kind: "refusal", answer: REFUSAL, citations: [] });
 
-function generalKnowledgePrompt(question: string): string {
-  return `Answer the user's question directly with general knowledge. Keep it brief and factual. Do not claim to know Kuldeep's portfolio or resume unless the user explicitly asks about it.
-
-User question: ${question}`;
-}
-
-async function answerGeneralKnowledge(question: string, dependencies: ChatDependencies): Promise<ChatResponse> {
-  const response = await dependencies.generate(generalKnowledgePrompt(question));
-  return {
-    kind: "answer",
-    answer: response.answer,
-    citations: [],
-    model: response.model,
-  };
-}
-
+// Every question is answered from retrieved portfolio context or refused.
+// There is deliberately no ungrounded "general knowledge" path: a keyword
+// guess about whether a question is "about the portfolio" lets questions such
+// as "Have you used Kubernetes?" bypass grounding and get an invented answer.
 export async function answerPortfolioQuestion(
   question: string,
   index: RagIndex,
   dependencies: ChatDependencies = productionDependencies,
 ): Promise<ChatResponse> {
-  if (!index.chunks.length) {
-    if (looksLikePortfolioQuestion(question)) {
-      return { kind: "refusal", answer: REFUSAL, citations: [] };
-    }
-    return answerGeneralKnowledge(question, dependencies);
-  }
+  if (!index.chunks.length) return refusal();
 
   const retrievalQuery = buildRetrievalQuery(question);
   const queryEmbedding = await dependencies.embedQuery(retrievalQuery);
-  const matches = retrieve(index, queryEmbedding, 4, retrievalQuery);
+  const matches = retrieve(index, queryEmbedding, RETRIEVED_CHUNKS, retrievalQuery);
   const bestScore = matches[0]?.score ?? 0;
-  if (bestScore < relevanceThreshold()) {
-    if (!looksLikePortfolioQuestion(question)) {
-      return answerGeneralKnowledge(question, dependencies);
-    }
-    return { kind: "refusal", answer: REFUSAL, citations: [] };
-  }
+  if (bestScore < relevanceThreshold()) return refusal();
 
   const context = matches
     .map(({ chunk }, position) => `[${position + 1}] ${chunk.sourceTitle} — ${chunk.heading}\n${chunk.text}`)
     .join("\n\n");
+  // The materials say outright that this fact is undocumented. Decline to
+  // confirm it, but still tell the visitor what is documented instead of a bare
+  // refusal.
   if (contextExplicitlyWithholdsTheFact(question, matches.map(({ chunk }) => chunk))) {
-    if (!looksLikePortfolioQuestion(question)) {
-      return answerGeneralKnowledge(question, dependencies);
-    }
-    return { kind: "refusal", answer: REFUSAL, citations: [] };
+    const response = await dependencies.generate(undocumentedFactPrompt(question, context));
+    return {
+      kind: "refusal",
+      answer: response.answer,
+      citations: citationsFor(matches.map(({ chunk }) => chunk)),
+      model: response.model,
+    };
   }
+
   const response = await dependencies.generate(groundedPrompt(question, context));
+  const citations = citationsFor(matches.map(({ chunk }) => chunk));
+  if (response.answer.startsWith(NOT_DOCUMENTED_PREFIX)) {
+    return {
+      kind: "refusal",
+      answer: response.answer.slice(NOT_DOCUMENTED_PREFIX.length).trim(),
+      citations,
+      model: response.model,
+    };
+  }
   return {
     kind: response.answer === REFUSAL ? "refusal" : "answer",
     answer: response.answer,
-    citations: citationsFor(matches.map(({ chunk }) => chunk)),
+    citations,
     model: response.model,
   };
 }

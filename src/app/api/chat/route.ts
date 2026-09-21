@@ -2,6 +2,7 @@ import { z } from "zod";
 import { answerPortfolioQuestion } from "@/lib/chat-service";
 import { ProviderUnavailableError } from "@/lib/gemini";
 import ragIndexData from "@/data/rag-index.json";
+import { clientKey, isRateLimited } from "@/lib/rate-limit";
 import type { RagIndex } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -12,6 +13,13 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  if (isRateLimited(clientKey(request))) {
+    return Response.json(
+      { error: "Too many questions in a short time. Please wait a minute and try again." },
+      { status: 429, headers: { "Retry-After": "60" } },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();

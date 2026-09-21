@@ -23,7 +23,7 @@ export const profile = {
     "I build dependable web systems across healthcare, HR, and developer tooling—with a focus on practical backend architecture, usable interfaces, and honest AI experiences.",
   about: [
     "I am a full stack developer with more than two years of documented experience delivering applications across healthcare and HR domains. My work spans Node.js, Express.js, React, Next.js, TypeScript, MongoDB, REST APIs, and cloud deployment.",
-    "This portfolio is deliberately paired with a retrieval assistant: it answers from the supplied resume and project notes, cites its sources, and says when the evidence is not there.",
+    "This portfolio is deliberately paired with a retrieval assistant: it answers only from the supplied resume and project notes, and says so when the evidence is not there.",
   ],
   projects: [
     {

@@ -132,15 +132,39 @@ function hasTerm(haystack: string, term: string): boolean {
   return variantsFor(term).some((variant) => haystack.includes(variant));
 }
 
-function lexicalBoost(query: string, chunk: RagChunk): number {
+// A query term found in at most this many section headings is treated as a
+// distinctive name (an employer, a project) rather than a common word.
+const DISTINCTIVE_HEADING_LIMIT = 2;
+const DISTINCTIVE_HEADING_BONUS = 0.25;
+
+function headingText(chunk: RagChunk): string {
+  return `${chunk.sourceTitle} ${chunk.heading}`.toLowerCase();
+}
+
+function distinctiveTerms(query: string, chunks: RagChunk[]): Set<string> {
+  const headings = chunks.map(headingText);
+  const distinctive = new Set<string>();
+  for (const term of retrievalTerms(query)) {
+    const count = headings.filter((heading) => hasTerm(heading, term)).length;
+    if (count > 0 && count <= DISTINCTIVE_HEADING_LIMIT) distinctive.add(term);
+  }
+  return distinctive;
+}
+
+function lexicalBoost(query: string, chunk: RagChunk, distinctive: Set<string>): number {
   const terms = retrievalTerms(query);
   if (!terms.length) return 0;
 
-  const heading = `${chunk.sourceTitle} ${chunk.heading}`.toLowerCase();
+  const heading = headingText(chunk);
   const body = chunk.text.toLowerCase();
   const headingMatches = terms.filter((term) => hasTerm(heading, term)).length;
   const bodyMatches = terms.filter((term) => hasTerm(body, term)).length;
-  return (headingMatches / terms.length) * 0.16 + (bodyMatches / terms.length) * 0.12;
+  const distinctiveMatch = terms.some((term) => distinctive.has(term) && hasTerm(heading, term));
+  return (
+    (headingMatches / terms.length) * 0.16 +
+    (bodyMatches / terms.length) * 0.12 +
+    (distinctiveMatch ? DISTINCTIVE_HEADING_BONUS : 0)
+  );
 }
 
 const ABSENCE_GENERIC_TERMS = new Set([
@@ -155,15 +179,19 @@ function absencePenalty(query: string, chunk: RagChunk): number {
   }
 
   const queryTermSet = new Set(retrievalTerms(query));
-  const specificTerms = retrievalTerms(absenceText).filter((term) => !ABSENCE_GENERIC_TERMS.has(term));
+  // Judge what the entry is "about" from its heading only. Its body may also
+  // list documented facts (employers, roles) so answers can mention them, and
+  // those words must not make the entry look relevant to every employment query.
+  const specificTerms = retrievalTerms(chunk.heading).filter((term) => !ABSENCE_GENERIC_TERMS.has(term));
   return specificTerms.some((term) => queryTermSet.has(term)) ? 0 : -0.3;
 }
 
 export function retrieve(index: RagIndex, queryEmbedding: number[], limit = 4, query?: string) {
+  const distinctive = query ? distinctiveTerms(query, index.chunks) : new Set<string>();
   return index.chunks
     .map((chunk) => {
       const vectorScore = cosineSimilarity(queryEmbedding, chunk.embedding);
-      return { chunk, score: vectorScore + (query ? lexicalBoost(query, chunk) + absencePenalty(query, chunk) : 0) };
+      return { chunk, score: vectorScore + (query ? lexicalBoost(query, chunk, distinctive) + absencePenalty(query, chunk) : 0) };
     })
     .sort((left, right) => right.score - left.score)
     .slice(0, limit);

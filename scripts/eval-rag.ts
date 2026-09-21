@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { answerPortfolioQuestion, buildRetrievalQuery, REFUSAL } from "../src/lib/chat-service";
+import { answerPortfolioQuestion, buildRetrievalQuery } from "../src/lib/chat-service";
 import { generateGroundedAnswer } from "../src/lib/gemini";
 import { embedTexts } from "../src/lib/local-embeddings";
 import type { RagIndex } from "../src/lib/types";
@@ -33,7 +33,7 @@ async function main() {
       generate: generateGroundedAnswer,
     });
     const answer = normaliseForMatch(response.answer);
-    const refusalMatches = test.expectRefusal ? response.answer === REFUSAL : response.kind === "answer";
+    const refusalMatches = test.expectRefusal ? response.kind === "refusal" : response.kind === "answer";
     const sourceMatches = test.expectedSource ? response.citations.some((citation) => citation.title === test.expectedSource) : true;
     const termsMatch = test.expectedTerms
       ? test.expectedTerms.some((term) => answer.includes(normaliseForMatch(term)))

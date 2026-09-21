@@ -1,23 +1,48 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { ChatResponse } from "@/lib/types";
 
 type ChatWidgetProps = { firstName: string };
-type WidgetState = "idle" | "loading" | "answer" | "refusal" | "error";
+type Message = {
+  id: number;
+  role: "user" | "assistant";
+  text: string;
+  tone?: "answer" | "refusal" | "error";
+};
+
+const EXAMPLES = ["What healthcare systems has he built?", "What is TrustDrive?", "Where did Kuldeep study?"];
+const GENERIC_ERROR = "The assistant could not answer right now.";
+
+// Model answers sometimes contain **bold**; render that instead of showing asterisks.
+function renderInline(text: string) {
+  return text.split(/\*\*(.+?)\*\*/gu).map((part, index) =>
+    index % 2 === 1 ? <strong key={index}>{part}</strong> : <Fragment key={index}>{part}</Fragment>,
+  );
+}
 
 export function ChatWidget({ firstName }: ChatWidgetProps) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
-  const [status, setStatus] = useState<WidgetState>("idle");
-  const [response, setResponse] = useState<ChatResponse | null>(null);
-  const [error, setError] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const nextId = useRef(1);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView?.({ block: "end" });
+  }, [messages, loading, open]);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    requestAnimationFrame(() => triggerRef.current?.focus());
+  }, []);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -25,21 +50,19 @@ export function ChatWidget({ firstName }: ChatWidgetProps) {
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [open]);
+  }, [open, close]);
 
-  function close() {
-    setOpen(false);
-    requestAnimationFrame(() => triggerRef.current?.focus());
+  function addMessage(message: Omit<Message, "id">) {
+    setMessages((current) => [...current, { ...message, id: nextId.current++ }]);
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const trimmed = question.trim();
-    if (trimmed.length < 2 || status === "loading") return;
+  async function ask(rawQuestion: string) {
+    const trimmed = rawQuestion.trim();
+    if (trimmed.length < 2 || loading) return;
 
-    setStatus("loading");
-    setResponse(null);
-    setError("");
+    addMessage({ role: "user", text: trimmed });
+    setQuestion("");
+    setLoading(true);
     try {
       const request = await fetch("/api/chat", {
         method: "POST",
@@ -47,52 +70,68 @@ export function ChatWidget({ firstName }: ChatWidgetProps) {
         body: JSON.stringify({ question: trimmed }),
       });
       const data = (await request.json()) as ChatResponse & { error?: string };
-      if (!request.ok) throw new Error(data.error || "The assistant could not answer right now.");
-      setResponse(data);
-      setStatus(data.kind);
+      if (!request.ok) throw new Error(data.error || GENERIC_ERROR);
+      addMessage({ role: "assistant", text: data.answer, tone: data.kind });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The assistant could not answer right now.");
-      setStatus("error");
+      addMessage({ role: "assistant", text: caught instanceof Error ? caught.message : GENERIC_ERROR, tone: "error" });
+    } finally {
+      setLoading(false);
     }
   }
 
-  const examples = ["What healthcare systems has he built?", "What is TrustDrive?", "Where did Kuldeep study?"];
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void ask(question);
+  }
 
   return (
     <aside className="chat-shell" aria-label={`Talk to ${firstName}`}>
       {open ? (
         <div id="chat-panel" className="chat-panel" role="dialog" aria-modal="false" aria-labelledby="chat-title">
           <div className="chat-heading">
-            <div>
-              <p className="eyebrow">Portfolio assistant</p>
+            <span className="chat-avatar" aria-hidden="true">{firstName.charAt(0)}</span>
+            <div className="chat-heading-text">
               <h2 id="chat-title">Talk to {firstName}</h2>
+              <p className="chat-status">Portfolio assistant</p>
             </div>
             <button className="icon-button" type="button" onClick={close} aria-label="Close assistant">
               <span aria-hidden="true">×</span>
             </button>
           </div>
 
-          {status === "idle" ? (
-            <div className="chat-empty">
-              <p>Ask about projects, experience, or technical decisions.</p>
+          <div className="chat-log" role="log" aria-live="polite" aria-busy={loading}>
+            <div className="message message-assistant">
+              <p className="bubble">
+                Hi, I’m {firstName}’s portfolio assistant. Ask about his projects, experience, or education and I’ll answer from his résumé and project notes.
+              </p>
+            </div>
+
+            {messages.map((message) => (
+              <div key={message.id} className={`message message-${message.role}`}>
+                <p className={`bubble${message.tone && message.tone !== "answer" ? ` bubble-${message.tone}` : ""}`}>
+                  {message.role === "assistant" ? renderInline(message.text) : message.text}
+                </p>
+              </div>
+            ))}
+
+            {loading ? (
+              <div className="message message-assistant">
+                <p className="bubble typing" role="status" aria-label="Searching the portfolio material">
+                  <span /><span /><span />
+                </p>
+              </div>
+            ) : null}
+
+            {!messages.length ? (
               <div className="suggestions" aria-label="Example questions">
-                {examples.map((example) => (
-                  <button key={example} type="button" onClick={() => setQuestion(example)}>
+                {EXAMPLES.map((example) => (
+                  <button key={example} type="button" onClick={() => void ask(example)}>
                     {example}
                   </button>
                 ))}
               </div>
-            </div>
-          ) : null}
-
-          <div className="chat-result" aria-live="polite" aria-busy={status === "loading"}>
-            {status === "loading" ? <p className="thinking">Searching the portfolio material…</p> : null}
-            {status === "answer" || status === "refusal" ? (
-              <>
-                <p className={status === "refusal" ? "refusal" : "answer"}>{response?.answer}</p>
-              </>
             ) : null}
-            {status === "error" ? <p className="error-message">{error}</p> : null}
+            <div ref={endRef} />
           </div>
 
           <form className="chat-form" onSubmit={submit}>
@@ -102,12 +141,14 @@ export function ChatWidget({ firstName }: ChatWidgetProps) {
               id="portfolio-question"
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
-              placeholder="Ask about Kuldeep’s work…"
+              placeholder="Type a message…"
               maxLength={600}
-              disabled={status === "loading"}
+              autoComplete="off"
             />
-            <button type="submit" disabled={question.trim().length < 2 || status === "loading"}>
-              {status === "loading" ? "Thinking" : "Ask"}
+            <button type="submit" aria-label="Send" disabled={question.trim().length < 2 || loading}>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+                <path d="M3.4 20.4 21 12 3.4 3.6v6.4l12.6 2-12.6 2z" />
+              </svg>
             </button>
           </form>
         </div>

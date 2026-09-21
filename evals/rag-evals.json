@@ -2,42 +2,66 @@
   {
     "question": "What healthcare system did Kuldeep build at Varpas Concepts?",
     "expectedSource": "HIMS — Healthcare Information Management System",
-    "expectedTerms": ["HIMS", "Healthcare Information Management System"]
+    "expectedTerms": [
+      "HIMS",
+      "Healthcare Information Management System"
+    ]
   },
   {
     "question": "What interoperability standard did HIMS use?",
     "expectedSource": "HIMS — Healthcare Information Management System",
-    "expectedTerms": ["HL7 FHIR R4", "FHIR R4"]
+    "expectedTerms": [
+      "HL7 FHIR R4",
+      "FHIR R4"
+    ]
   },
   {
     "question": "How did HIMS isolate data between organisations?",
     "expectedSource": "HIMS — Healthcare Information Management System",
-    "expectedTerms": ["tenant", "isolation"]
+    "expectedTerms": [
+      "tenant",
+      "isolation"
+    ]
   },
   {
     "question": "What was the reported infrastructure cost outcome for HIMS?",
     "expectedSource": "HIMS — Healthcare Information Management System",
-    "expectedTerms": ["25%", "cost"]
+    "expectedTerms": [
+      "25%",
+      "cost"
+    ]
   },
   {
     "question": "What is TrustDrive?",
     "expectedSource": "TrustDrive — Blockchain-Based Cloud Storage",
-    "expectedTerms": ["blockchain", "document"]
+    "expectedTerms": [
+      "blockchain",
+      "document"
+    ]
   },
   {
     "question": "Why does TrustDrive use IPFS?",
     "expectedSource": "TrustDrive — Blockchain-Based Cloud Storage",
-    "expectedTerms": ["IPFS", "storage"]
+    "expectedTerms": [
+      "IPFS",
+      "storage"
+    ]
   },
   {
     "question": "Which tools were used for TrustDrive smart contract development?",
     "expectedSource": "TrustDrive — Blockchain-Based Cloud Storage",
-    "expectedTerms": ["Solidity", "Hardhat"]
+    "expectedTerms": [
+      "Solidity",
+      "Hardhat"
+    ]
   },
   {
     "question": "What technologies does Kuldeep use for backend development?",
     "expectedSource": "Kuldeep Singh — Resume",
-    "expectedTerms": ["Node.js", "Express"]
+    "expectedTerms": [
+      "Node.js",
+      "Express"
+    ]
   },
   {
     "question": "Has Kuldeep worked with LangGraph?",
@@ -46,5 +70,29 @@
   {
     "question": "Have you worked at Google?",
     "expectRefusal": true
+  },
+  {
+    "question": "Have you used Kubernetes?",
+    "expectRefusal": true
+  },
+  {
+    "question": "What is the weather in Paris?",
+    "expectRefusal": true
+  },
+  {
+    "question": "Has she built with LangGraph?",
+    "expectRefusal": true
+  },
+  {
+    "question": "Has he worked at Microsoft?",
+    "expectRefusal": true
+  },
+  {
+    "question": "What did he build at Zerobug?",
+    "expectedSource": "Kuldeep Singh — Resume",
+    "expectedTerms": [
+      "HRMS",
+      "Human Resource"
+    ]
   }
 ]

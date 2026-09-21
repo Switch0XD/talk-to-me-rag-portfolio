@@ -9,6 +9,7 @@ test-results/
 .env.*.local
 !.env.example
 next-env.d.ts
+*.tsbuildinfo
 
 # The original supplied CV includes a phone number. The public-safe Markdown
 # version in content/source is the corpus source committed with this portfolio.
@@ -16,9 +17,11 @@ Kuldeep_Singh_Resume_js.pdf
 
 # Google service-account credentials
 *-service-account.json
-gen-lang-client-0257768983-8ced29854bd3.json
 
 # Temporary local embedding-model comparisons (not deployment assets)
 src/data/local-models-xenova/
 src/data/local-models-e5/
 src/data/local-models-bge/
+
+# Google service-account credentials (local file, never commit)
+gen-lang-client-0257768983-8ced29854bd3.json

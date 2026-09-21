@@ -36,42 +36,56 @@ describe("portfolio answer service", () => {
     expect(response.citations).toEqual([{ sourceId: "hims", title: "HIMS", heading: "Healthcare standard" }]);
   });
 
-  it("falls back to general knowledge for simple non-portfolio questions", async () => {
-    let generated = false;
-    const response = await answerPortfolioQuestion("What is the weather in Paris?", index, {
-      embedQuery: async () => [-1, 0],
-      generate: async (prompt) => {
-        generated = true;
-        expect(prompt).toContain("User question: What is the weather in Paris?");
-        return { answer: "It is usually mild and sunny.", model: "test-model" };
-      },
-    });
-    expect(response).toEqual({
-      kind: "answer",
-      answer: "It is usually mild and sunny.",
-      citations: [],
-      model: "test-model",
-    });
-    expect(generated).toBe(true);
+  it("refuses unrelated and unkeyworded questions without calling the model", async () => {
+    for (const question of ["What is the weather in Paris?", "Have you used Kubernetes?", "Has she built with LangGraph?"]) {
+      let generated = false;
+      const response = await answerPortfolioQuestion(question, index, {
+        embedQuery: async () => [-1, 0],
+        generate: async () => {
+          generated = true;
+          return { answer: "invented", model: "test-model" };
+        },
+      });
+      expect(response).toEqual({ kind: "refusal", answer: REFUSAL, citations: [] });
+      expect(generated).toBe(false);
+    }
   });
 
-  it("refuses without generation when retrieved material explicitly says a fact is undocumented", async () => {
+  it("refuses when the index is empty", async () => {
+    const response = await answerPortfolioQuestion("What is TrustDrive?", { ...index, chunks: [] });
+    expect(response).toEqual({ kind: "refusal", answer: REFUSAL, citations: [] });
+  });
+
+  it("declines to confirm an undocumented fact but still says what is documented", async () => {
     const unsupportedIndex: RagIndex = {
       ...index,
       chunks: [{
         ...index.chunks[0],
-        text: "The supplied portfolio materials do not describe work with LangGraph.",
+        text: "The supplied portfolio materials do not describe work at Google. His documented employers are Acme and Beta.",
       }],
     };
-    let generated = false;
-    const response = await answerPortfolioQuestion("Has Kuldeep worked with LangGraph?", unsupportedIndex, {
+    let prompt = "";
+    const response = await answerPortfolioQuestion("Has Kuldeep worked at Google?", unsupportedIndex, {
       embedQuery: async () => [1, 0],
-      generate: async () => {
-        generated = true;
-        return { answer: "No", model: "test-model" };
+      generate: async (received) => {
+        prompt = received;
+        return { answer: "The materials don't document work at Google. He has worked at Acme and Beta.", model: "test-model" };
       },
     });
-    expect(response).toEqual({ kind: "refusal", answer: REFUSAL, citations: [] });
-    expect(generated).toBe(false);
+    expect(response.kind).toBe("refusal");
+    expect(response.answer).toContain("Acme and Beta");
+    expect(prompt).toContain("explicitly say is not documented");
+  });
+
+  it("turns a NOT_DOCUMENTED reply into a refusal without the marker", async () => {
+    const response = await answerPortfolioQuestion("Has he worked at Microsoft?", index, {
+      embedQuery: async () => [1, 0],
+      generate: async () => ({
+        answer: "NOT_DOCUMENTED: The materials do not document work at Microsoft. He has worked at Acme.",
+        model: "test-model",
+      }),
+    });
+    expect(response.kind).toBe("refusal");
+    expect(response.answer).toBe("The materials do not document work at Microsoft. He has worked at Acme.");
   });
 });
