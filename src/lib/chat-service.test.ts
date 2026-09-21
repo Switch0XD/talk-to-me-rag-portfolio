@@ -41,4 +41,24 @@ describe("portfolio answer service", () => {
     expect(response).toEqual({ kind: "refusal", answer: REFUSAL, citations: [] });
     expect(generated).toBe(false);
   });
+
+  it("refuses without generation when retrieved material explicitly says a fact is undocumented", async () => {
+    const unsupportedIndex: RagIndex = {
+      ...index,
+      chunks: [{
+        ...index.chunks[0],
+        text: "The supplied portfolio materials do not describe work with LangGraph.",
+      }],
+    };
+    let generated = false;
+    const response = await answerPortfolioQuestion("Has Kuldeep worked with LangGraph?", unsupportedIndex, {
+      embedQuery: async () => [1, 0],
+      generate: async () => {
+        generated = true;
+        return { answer: "No", model: "test-model" };
+      },
+    });
+    expect(response).toEqual({ kind: "refusal", answer: REFUSAL, citations: [] });
+    expect(generated).toBe(false);
+  });
 });

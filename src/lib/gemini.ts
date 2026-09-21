@@ -129,6 +129,28 @@ export async function embedText(text: string, taskType: "RETRIEVAL_DOCUMENT" | "
   return vector;
 }
 
+/**
+ * Embed several retrieval queries in one Vertex request. This is used by the
+ * local evaluator so it does not consume one quota unit per test case.
+ */
+export async function embedQueries(texts: string[]): Promise<number[][]> {
+  if (!texts.length) return [];
+
+  const response = await vertexClient().models.embedContent({
+    model: config().embeddingModel,
+    contents: texts,
+    config: {
+      taskType: "RETRIEVAL_QUERY",
+      outputDimensionality: 768,
+    },
+  });
+  const vectors = response.embeddings?.map((embedding) => embedding.values || []) || [];
+  if (vectors.length !== texts.length || vectors.some((vector) => !vector.length)) {
+    throw new ProviderUnavailableError("Vertex returned incomplete query embeddings.");
+  }
+  return vectors;
+}
+
 export async function embedDocuments(texts: string[]): Promise<number[][]> {
   if (!texts.length) return [];
   const model = config().embeddingModel;
