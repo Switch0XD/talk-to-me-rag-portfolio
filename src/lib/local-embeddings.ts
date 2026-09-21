@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { env, pipeline } from "@huggingface/transformers";
 
-export const LOCAL_EMBEDDING_MODEL = "onnx-community/all-MiniLM-L6-v2-ONNX";
+const LOCAL_EMBEDDING_MODEL = "onnx-community/all-MiniLM-L6-v2-ONNX";
 const MODEL_DTYPE = "q4";
 const localModelPath = path.join(process.cwd(), "src", "data", "local-models");
 const modelConfigPath = path.join(localModelPath, LOCAL_EMBEDDING_MODEL, "config.json");

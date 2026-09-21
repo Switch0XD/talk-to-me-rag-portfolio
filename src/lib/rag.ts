@@ -1,7 +1,7 @@
 import type { Citation, RagChunk, RagIndex } from "@/lib/types";
 
 export const CHUNK_SIZE_TOKENS = 500;
-export const CHUNK_OVERLAP_TOKENS = 80;
+const CHUNK_OVERLAP_TOKENS = 80;
 
 export function normalizeText(input: string): string {
   return input
@@ -16,7 +16,7 @@ export function redactPersonalPhoneNumbers(input: string): string {
   return input.replace(/\+?\d[\d\s().-]{8,}\d/g, "[phone number redacted]");
 }
 
-export function estimateTokens(input: string): number {
+function estimateTokens(input: string): number {
   return Math.ceil(normalizeText(input).length / 4);
 }
 

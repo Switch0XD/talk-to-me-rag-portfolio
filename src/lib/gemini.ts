@@ -31,7 +31,7 @@ function client() {
   return new GoogleGenAI({ apiKey });
 }
 
-export function providerStatus(error: unknown): number | undefined {
+function providerStatus(error: unknown): number | undefined {
   if (!error || typeof error !== "object") return undefined;
   const candidate = error as { status?: unknown; response?: { status?: unknown }; error?: { code?: unknown } };
   if (typeof candidate.status === "number") return candidate.status;

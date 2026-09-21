@@ -15,13 +15,7 @@ next-env.d.ts
 # version in content/source is the corpus source committed with this portfolio.
 Kuldeep_Singh_Resume_js.pdf
 
-# Google service-account credentials
+# Google service-account credentials (never commit)
 *-service-account.json
 
-# Temporary local embedding-model comparisons (not deployment assets)
-src/data/local-models-xenova/
-src/data/local-models-e5/
-src/data/local-models-bge/
-
-# Google service-account credentials (local file, never commit)
 gen-lang-client-0257768983-8ced29854bd3.json
