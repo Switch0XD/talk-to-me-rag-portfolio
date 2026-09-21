@@ -18,7 +18,7 @@ test("opens, answers, and closes the portfolio assistant", async ({ page }) => {
   await page.getByLabel("Your question").fill("What healthcare standard did HIMS use?");
   await page.getByRole("button", { name: "Ask" }).click();
   await expect(page.getByText("HIMS used HL7 FHIR R4-compliant REST APIs.")).toBeVisible();
-  await expect(page.getByText("HIMS · Healthcare standard")).toBeVisible();
+  await expect(page.getByLabel("Answer sources")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toBeHidden();
 });

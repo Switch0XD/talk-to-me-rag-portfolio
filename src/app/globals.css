@@ -67,7 +67,6 @@ footer { width: min(1160px, calc(100% - 48px)); margin: 0 auto; border-top: 1px 
 .chat-heading .eyebrow { margin-bottom: 6px; font-size: .64rem; }
 .chat-heading h2 { margin: 0; font-size: 1.85rem; }
 .icon-button { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--ink); font-size: 1.6rem; line-height: 1; }
-.chat-disclaimer { margin: 0; padding: 11px 20px; background: #f1f7f2; color: #42604d; font-size: .78rem; }
 .chat-empty, .chat-result { min-height: 132px; padding: 18px 20px; overflow-y: auto; }
 .chat-empty p { margin: 0 0 13px; color: var(--muted); font-size: .9rem; }
 .suggestions { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -79,9 +78,6 @@ footer { width: min(1160px, calc(100% - 48px)); margin: 0 auto; border-top: 1px 
 .answer { color: #26352e; white-space: pre-wrap; }
 .refusal { color: #66521d; }
 .error-message { color: #a12929; }
-.citations { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; color: var(--muted); font-size: .73rem; }
-.citations > span:first-child { color: #527061; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
-.citation { border-left: 2px solid var(--accent); padding-left: 7px; }
 .chat-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 14px; border-top: 1px solid var(--line); background: #fbfcfa; }
 .chat-form input { min-width: 0; border: 1px solid #bdc9c0; border-radius: 7px; background: white; padding: 10px 11px; color: var(--ink); font-size: .88rem; }
 .chat-form input:focus { outline: 2px solid #79af92; outline-offset: 1px; }

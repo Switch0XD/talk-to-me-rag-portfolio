@@ -56,7 +56,7 @@ export function ChatWidget({ firstName }: ChatWidgetProps) {
     }
   }
 
-  const examples = ["What healthcare systems has he built?", "What is TrustDrive?", "Has he worked at Google?"];
+  const examples = ["What healthcare systems has he built?", "What is TrustDrive?", "Where did Kuldeep study?"];
 
   return (
     <aside className="chat-shell" aria-label={`Talk to ${firstName}`}>
@@ -64,15 +64,13 @@ export function ChatWidget({ firstName }: ChatWidgetProps) {
         <div id="chat-panel" className="chat-panel" role="dialog" aria-modal="false" aria-labelledby="chat-title">
           <div className="chat-heading">
             <div>
-              <p className="eyebrow">Grounded portfolio assistant</p>
+              <p className="eyebrow">Portfolio assistant</p>
               <h2 id="chat-title">Talk to {firstName}</h2>
             </div>
             <button className="icon-button" type="button" onClick={close} aria-label="Close assistant">
               <span aria-hidden="true">×</span>
             </button>
           </div>
-
-          <p className="chat-disclaimer">Answers come only from Kuldeep’s supplied portfolio materials.</p>
 
           {status === "idle" ? (
             <div className="chat-empty">
@@ -92,16 +90,6 @@ export function ChatWidget({ firstName }: ChatWidgetProps) {
             {status === "answer" || status === "refusal" ? (
               <>
                 <p className={status === "refusal" ? "refusal" : "answer"}>{response?.answer}</p>
-                {response?.citations.length ? (
-                  <div className="citations" aria-label="Answer sources">
-                    <span>Sources</span>
-                    {response.citations.map((citation) => (
-                      <span key={`${citation.sourceId}-${citation.heading}`} className="citation">
-                        {citation.title}{citation.heading ? ` · ${citation.heading}` : ""}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
               </>
             ) : null}
             {status === "error" ? <p className="error-message">{error}</p> : null}

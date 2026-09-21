@@ -2,19 +2,11 @@ import { GoogleGenAI } from "@google/genai";
 
 function config() {
   return {
-    embeddingModel: process.env.VERTEX_EMBEDDING_MODEL || "gemini-embedding-001",
     primaryModel: process.env.GEMINI_PRIMARY_MODEL || "gemini-2.5-flash-lite",
     fallbackModel: process.env.GEMINI_FALLBACK_MODEL || "gemini-2.5-flash",
     groqModel: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
-    vertexProject: process.env.VERTEX_AI_PROJECT || process.env.GOOGLE_CLOUD_PROJECT,
-    vertexLocation: process.env.VERTEX_AI_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || "us-central1",
-    vertexCredentialsFile: process.env.VERTEX_AI_CREDENTIALS_FILE,
-    vertexCredentials: process.env.VERTEX_AI_CREDENTIALS,
   };
 }
-
-let cachedVertexClient: GoogleGenAI | undefined;
-let cachedVertexConfig: string | undefined;
 
 export class ProviderUnavailableError extends Error {
   constructor(message = "The AI service is temporarily unavailable.") {
@@ -23,46 +15,12 @@ export class ProviderUnavailableError extends Error {
   }
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 function client() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new ProviderUnavailableError("The chat assistant has not been configured yet.");
   }
   return new GoogleGenAI({ apiKey });
-}
-
-function vertexClient() {
-  const { vertexProject, vertexLocation, vertexCredentialsFile, vertexCredentials } = config();
-  if (!vertexProject) {
-    throw new ProviderUnavailableError("Vertex embeddings require VERTEX_AI_PROJECT.");
-  }
-
-  if (vertexCredentialsFile) {
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = vertexCredentialsFile;
-  }
-
-  let credentials: Record<string, unknown> | undefined;
-  if (!vertexCredentialsFile && vertexCredentials) {
-    try {
-      credentials = JSON.parse(vertexCredentials) as Record<string, unknown>;
-    } catch {
-      throw new ProviderUnavailableError("VERTEX_AI_CREDENTIALS must contain valid one-line service-account JSON.");
-    }
-  }
-
-  const clientConfig = `${vertexProject}:${vertexLocation}:${vertexCredentialsFile || "inline"}`;
-  if (cachedVertexClient && cachedVertexConfig === clientConfig) return cachedVertexClient;
-
-  cachedVertexClient = new GoogleGenAI({
-    vertexai: true,
-    project: vertexProject,
-    location: vertexLocation,
-    ...(credentials ? { googleAuthOptions: { credentials } } : {}),
-  });
-  cachedVertexConfig = clientConfig;
-  return cachedVertexClient;
 }
 
 export function providerStatus(error: unknown): number | undefined {
@@ -115,100 +73,6 @@ export async function withProviderFallback<T>(
   }
 }
 
-export async function embedText(text: string, taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY") {
-  const response = await vertexClient().models.embedContent({
-    model: config().embeddingModel,
-    contents: text,
-    config: {
-      taskType,
-      outputDimensionality: 768,
-    },
-  });
-  const vector = response.embeddings?.[0]?.values;
-  if (!vector?.length) throw new ProviderUnavailableError("Gemini returned an empty embedding.");
-  return vector;
-}
-
-/**
- * Embed several retrieval queries in one Vertex request. This is used by the
- * local evaluator so it does not consume one quota unit per test case.
- */
-export async function embedQueries(texts: string[]): Promise<number[][]> {
-  if (!texts.length) return [];
-
-  const response = await vertexClient().models.embedContent({
-    model: config().embeddingModel,
-    contents: texts,
-    config: {
-      taskType: "RETRIEVAL_QUERY",
-      outputDimensionality: 768,
-    },
-  });
-  const vectors = response.embeddings?.map((embedding) => embedding.values || []) || [];
-  if (vectors.length !== texts.length || vectors.some((vector) => !vector.length)) {
-    throw new ProviderUnavailableError("Vertex returned incomplete query embeddings.");
-  }
-  return vectors;
-}
-
-export async function embedDocuments(texts: string[]): Promise<number[][]> {
-  if (!texts.length) return [];
-  const model = config().embeddingModel;
-
-  // Batching 5 texts per call reduces total API invocations by 80%
-  const batchSize = 5;
-  const vectors: number[][] = [];
-
-  for (let index = 0; index < texts.length; index += batchSize) {
-    const batch = texts.slice(index, index + batchSize);
-
-    let attempts = 0;
-    let success = false;
-
-    while (!success && attempts < 8) {
-      try {
-        attempts++;
-        const response = await vertexClient().models.embedContent({
-          model,
-          contents: batch,
-          config: {
-            taskType: "RETRIEVAL_DOCUMENT",
-            outputDimensionality: 768,
-          },
-        });
-
-        const batchVectors = response.embeddings?.map((embedding) => embedding.values || []) || [];
-        if (!batchVectors.length || batchVectors.length !== batch.length) {
-          throw new ProviderUnavailableError("Vertex returned incomplete document embeddings.");
-        }
-
-        vectors.push(...batchVectors);
-        success = true;
-        console.log(
-          `Embedded chunks ${index + 1}–${Math.min(index + batchSize, texts.length)} of ${texts.length}`,
-        );
-      } catch (err: unknown) {
-        const status = providerStatus(err);
-        if (status === 429 && attempts < 8) {
-          // Back off by 5s, 10s, 20s... to let the RPM quota window recover
-          const waitTime = Math.max(5000, Math.pow(2, attempts) * 1500);
-          console.warn(`[Quota 429] Waiting ${waitTime / 1000}s before retrying batch...`);
-          await sleep(waitTime);
-        } else {
-          throw err;
-        }
-      }
-    }
-
-    // Steady 3.5s cooldown between batches to stay under default Vertex RPM limits
-    if (index + batchSize < texts.length) {
-      await sleep(3500);
-    }
-  }
-
-  return vectors;
-}
-
 export async function generateGroundedAnswer(prompt: string) {
   return withProviderFallback(
     async () => {
@@ -255,8 +119,4 @@ export async function generateGroundedAnswer(prompt: string) {
       return { answer, model: config().groqModel };
     },
   );
-}
-
-export function activeEmbeddingModel() {
-  return config().embeddingModel;
 }

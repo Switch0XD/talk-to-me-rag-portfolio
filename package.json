@@ -16,8 +16,9 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@next/env": "^16.3.5",
     "@google/genai": "^2.23.0",
+    "@huggingface/transformers": "^3.8.1",
+    "@next/env": "^16.3.5",
     "mammoth": "^1.12.3",
     "next": "^16.3.5",
     "pdf-parse": "^2.4.5",

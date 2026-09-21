@@ -4,7 +4,7 @@ import path from "node:path";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import { loadProjectEnv } from "./load-env";
-import { activeEmbeddingModel, embedDocuments } from "../src/lib/gemini";
+import { activeEmbeddingModel, embedTexts } from "../src/lib/local-embeddings";
 import { chunkDocument, normalizeText, redactPersonalPhoneNumbers } from "../src/lib/rag";
 import type { RagChunk, RagIndex, SourceDocument } from "../src/lib/types";
 
@@ -111,7 +111,12 @@ async function main() {
     console.info(`Prepared ${chunks.length} chunks from ${path.relative(root, document.path)}`);
   }
 
-  const embeddings = await embedDocuments(unembeddedChunks.map((chunk) => chunk.text));
+  // Include stable document and section metadata in the semantic representation.
+  // The displayed chunk remains the original source text, while questions such
+  // as "Where did Kuldeep study?" can match an Education section by heading.
+  const embeddings = await embedTexts(
+    unembeddedChunks.map((chunk) => `${chunk.sourceTitle}\n${chunk.heading}\n${chunk.text}`),
+  );
   const chunks: RagChunk[] = unembeddedChunks.map((chunk, index) => ({ ...chunk, embedding: embeddings[index] }));
   const index: RagIndex = {
     version: 1,

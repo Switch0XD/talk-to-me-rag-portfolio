@@ -17,3 +17,8 @@ Kuldeep_Singh_Resume_js.pdf
 # Google service-account credentials
 *-service-account.json
 gen-lang-client-0257768983-8ced29854bd3.json
+
+# Temporary local embedding-model comparisons (not deployment assets)
+src/data/local-models-xenova/
+src/data/local-models-e5/
+src/data/local-models-bge/

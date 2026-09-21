@@ -6,7 +6,7 @@ A mobile-first personal portfolio for Kuldeep Singh with a genuine, small-corpus
 
 - **App and hosting:** Next.js App Router, TypeScript, Tailwind CSS, and Vercel Hobby.
 - **Generation:** Gemini `gemini-2.5-flash-lite`, retrying eligible 429/5xx requests with `gemini-2.5-flash`, then falling back to Groq `openai/gpt-oss-20b` for any remaining Gemini failure.
-- **Embeddings:** Vertex AI `text-embedding-005` at 768 dimensions. This English text model accepts five document inputs per request, keeping the small-corpus ingestion practical under shared Vertex quota.
+- **Embeddings:** Local open-source `onnx-community/all-MiniLM-L6-v2-ONNX` at 384 dimensions, using 4-bit ONNX weights. The model runs in the Node.js route handler; it is checked in under `src/data/local-models` and makes no embedding API request.
 - **Retrieval:** a checked-in JSON vector index with in-memory cosine similarity. It is appropriate for this roughly 5–8-page corpus, avoids a paid database, and remains genuine embedding-based RAG.
 - **Chunking:** heading-aware chunks of approximately 500 tokens with an 80-token overlap. The ingestion script is deliberately independent of the web build.
 
@@ -18,7 +18,7 @@ A mobile-first personal portfolio for Kuldeep Singh with a genuine, small-corpus
    npm install
    ```
 
-2. Copy `.env.example` to `.env.local`. Set `GEMINI_API_KEY`, `GROQ_API_KEY`, `VERTEX_AI_PROJECT`, and `VERTEX_AI_LOCATION`. For local ingestion, either authenticate with `gcloud auth application-default login` or set `VERTEX_AI_CREDENTIALS_FILE` to the ignored service-account JSON filename. For Vercel, set `VERTEX_AI_CREDENTIALS` to one-line service-account JSON. Do not prefix secrets with `NEXT_PUBLIC_` or commit them.
+2. Copy `.env.example` to `.env.local`. Set `GEMINI_API_KEY` and `GROQ_API_KEY` for answer generation. Embeddings run locally and require neither a key nor a cloud account. Do not prefix secrets with `NEXT_PUBLIC_` or commit them.
 
 3. Rebuild the index from the source documents:
 
@@ -55,7 +55,7 @@ The eval command runs ten questions against the live RAG pipeline, including sou
 ## Deploy to Vercel
 
 1. Push this repository to GitHub and import it into a personal Vercel Hobby project.
-2. Add `GEMINI_API_KEY`, `GROQ_API_KEY`, `VERTEX_AI_PROJECT`, `VERTEX_AI_LOCATION`, and one-line `VERTEX_AI_CREDENTIALS` to Vercel for both Preview and Production. Optionally add the model and relevance-threshold variables shown in `.env.example`.
+2. Add `GEMINI_API_KEY` and `GROQ_API_KEY` to Vercel for both Preview and Production. No Vertex variables or service-account JSON are needed. Optionally add the answer-model and relevance-threshold variables shown in `.env.example`.
 3. Run `npm run ingest` locally and commit the generated `src/data/rag-index.json` before deploying. Vercel serves the prebuilt index; it does not ingest private documents during a production build.
 4. Deploy, then test the public URL in an incognito window, including a supported project question, `Have you worked at Google?`, and a question unrelated to the portfolio.
 
@@ -63,5 +63,5 @@ The eval command runs ten questions against the live RAG pipeline, including sou
 
 - The assistant is intentionally single-turn and does not retain conversation history.
 - Citations identify the source document and section; they do not link to raw source files, because the index can be built from public-safe documents without publishing every original file.
-- Semantic thresholds should be tuned with `npm run eval:rag` whenever the corpus grows. The assistant is designed to refuse rather than stretch weak evidence into an answer.
-- Groq is used only for answer generation. Embeddings now use Vertex AI and require a billing-enabled Google Cloud project, the Vertex AI API, and service-account or application-default credentials.
+- The local embedding model uses a calibrated cosine relevance threshold of `0.32`. Tune it with `npm run eval:rag` whenever the corpus grows; the assistant is designed to refuse rather than stretch weak evidence into an answer.
+- Groq is used only for answer generation. The checked-in local ONNX model adds roughly 55 MB to the repository and server function, trading deployment size and cold-start time for zero embedding API cost and no embedding rate limits.

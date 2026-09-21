@@ -1,8 +1,12 @@
-import { generateGroundedAnswer, embedText } from "@/lib/gemini";
+import { generateGroundedAnswer } from "@/lib/gemini";
+import { embedText } from "@/lib/local-embeddings";
 import { citationsFor, retrieve } from "@/lib/rag";
-import type { ChatResponse, RagIndex } from "@/lib/types";
+import type { ChatResponse, RagChunk, RagIndex } from "@/lib/types";
 
-const DEFAULT_RELEVANCE_THRESHOLD = 0.42;
+// all-MiniLM-L6-v2 scores this small corpus lower than the previous Vertex
+// model. 0.32 admits directly supported HIMS facts while rejecting unrelated
+// questions (the weather fixture scores 0.14).
+const DEFAULT_RELEVANCE_THRESHOLD = 0.32;
 const REFUSAL = "I don’t have enough information in Kuldeep’s portfolio materials to answer that reliably.";
 
 export type ChatDependencies = {
@@ -11,7 +15,7 @@ export type ChatDependencies = {
 };
 
 const productionDependencies: ChatDependencies = {
-  embedQuery: (question) => embedText(question, "RETRIEVAL_QUERY"),
+  embedQuery: embedText,
   generate: generateGroundedAnswer,
 };
 
@@ -38,8 +42,23 @@ Retrieved portfolio context:
 ${context}`;
 }
 
-function contextExplicitlyWithholdsTheFact(context: string): boolean {
-  return /\b(?:supplied|portfolio)\s+(?:portfolio\s+)?materials?\s+(?:do not|does not|don't|doesn't)\s+(?:describe|document|mention|include|provide|support)\b/iu.test(context);
+const NON_SUBJECT_TERMS = new Set([
+  "a", "an", "and", "at", "did", "do", "does", "has", "have", "he", "his", "i", "in", "is", "it", "kuldeep", "of", "on", "the", "to", "was", "what", "where", "who", "with", "work", "worked", "you",
+]);
+
+function subjectTerms(value: string): string[] {
+  return value.toLowerCase().match(/[\p{L}\p{N}]+/gu)?.filter((term) => term.length > 2 && !NON_SUBJECT_TERMS.has(term)) || [];
+}
+
+function contextExplicitlyWithholdsTheFact(question: string, chunks: RagChunk[]): boolean {
+  const terms = subjectTerms(question);
+  if (!terms.length) return false;
+
+  return chunks.some((chunk) => {
+    const explicitlyUndocumented = /\b(?:supplied|portfolio)\s+(?:portfolio\s+)?materials?\s+(?:do not|does not|don't|doesn't)\s+(?:describe|document|mention|include|provide|support)\b/iu.test(chunk.text);
+    const chunkText = `${chunk.heading} ${chunk.text}`.toLowerCase();
+    return explicitlyUndocumented && terms.some((term) => chunkText.includes(term));
+  });
 }
 
 export async function answerPortfolioQuestion(
@@ -61,7 +80,7 @@ export async function answerPortfolioQuestion(
   const context = matches
     .map(({ chunk }, position) => `[${position + 1}] ${chunk.sourceTitle} — ${chunk.heading}\n${chunk.text}`)
     .join("\n\n");
-  if (contextExplicitlyWithholdsTheFact(context)) {
+  if (contextExplicitlyWithholdsTheFact(question, matches.map(({ chunk }) => chunk))) {
     return { kind: "refusal", answer: REFUSAL, citations: [] };
   }
   const response = await dependencies.generate(groundedPrompt(question, context));

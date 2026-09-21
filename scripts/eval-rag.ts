@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { answerPortfolioQuestion, REFUSAL } from "../src/lib/chat-service";
-import { embedQueries, generateGroundedAnswer } from "../src/lib/gemini";
+import { generateGroundedAnswer } from "../src/lib/gemini";
+import { embedTexts } from "../src/lib/local-embeddings";
 import type { RagIndex } from "../src/lib/types";
 import { loadProjectEnv } from "./load-env";
 
@@ -23,10 +24,7 @@ async function main() {
   const cases = JSON.parse(await readFile(path.join(root, "evals", "rag-evals.json"), "utf8")) as EvalCase[];
   if (!index.generatedAt || !index.chunks.length) throw new Error("Build the index first with npm run ingest.");
 
-  // The document index is intentionally batched during ingestion. Batch eval
-  // queries too, otherwise an evaluation can exceed Vertex's RPM quota even
-  // though a normal portfolio visitor asks only one question at a time.
-  const queryEmbeddings = await embedQueries(cases.map((test) => test.question));
+  const queryEmbeddings = await embedTexts(cases.map((test) => test.question));
 
   let passed = 0;
   for (const [position, test] of cases.entries()) {

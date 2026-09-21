@@ -8,6 +8,14 @@ Kuldeep Singh is a full stack developer with more than two years of experience d
 
 Kuldeep worked on HIMS, a multi-tenant Healthcare Information Management System, and later contributed to a digital-twin platform for human health modelling at IITI Drishti CPS Foundation. The supplied material states that the latter supported deployment and validation at AIIMS Delhi; it does not provide a public product link or further product metrics.
 
+## Where did Kuldeep study?
+
+Kuldeep completed a Master of Computer Application at Vellore Institute of Technology (VIT) in May 2024, with a CGPA of 8.18. He completed a Bachelor of Computer Application at MDU Rohtak in October 2020, with first division.
+
+## Where has Kuldeep worked?
+
+Kuldeep has held developer roles at IITI Drishti CPS Foundation, Varpas Concepts Pvt. Ltd., and Zerobug (Homofer Pvt. Ltd.). The résumé documents work across healthcare and HR platforms at those organisations.
+
 ## Has Kuldeep worked with LangGraph?
 
 The supplied portfolio materials do not describe work with LangGraph. The assistant should not infer experience with it from other AI tools or frameworks.
