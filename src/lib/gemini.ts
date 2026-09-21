@@ -1,11 +1,18 @@
 import { GoogleGenAI } from "@google/genai";
 
+const DEFAULT_OPENROUTER_MODELS = "nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-31b-it:free";
+
 function config() {
   return {
     primaryModel: process.env.GEMINI_PRIMARY_MODEL || "gemini-3.5-flash-lite",
     fallbackModel: process.env.GEMINI_FALLBACK_MODEL || "gemini-3.6-flash",
     groqModel: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
-    openRouterModel: process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free",
+    // Comma-separated, tried in order: free models are individually unreliable
+    // (upstream 429s, empty replies from reasoning models), so one is never enough.
+    openRouterModels: (process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODELS)
+      .split(",")
+      .map((model) => model.trim())
+      .filter(Boolean),
   };
 }
 
@@ -141,15 +148,20 @@ export async function generateGroundedAnswer(prompt: string) {
         maxTokens: 350,
       }),
     () =>
-      chatCompletion({
-        url: "https://openrouter.ai/api/v1/chat/completions",
-        apiKey: process.env.OPENROUTER_API_KEY,
-        missingKeyMessage: "The OpenRouter fallback has not been configured.",
-        model: config().openRouterModel,
-        prompt,
-        // Reasoning models spend part of this budget thinking before they answer.
-        maxTokens: 700,
-        extraHeaders: { "X-Title": "HireStella portfolio assistant" },
-      }),
+      withProviderFallback(
+        ...config().openRouterModels.map((model) => () =>
+          chatCompletion({
+            url: "https://openrouter.ai/api/v1/chat/completions",
+            apiKey: process.env.OPENROUTER_API_KEY,
+            missingKeyMessage: "The OpenRouter fallback has not been configured.",
+            model,
+            prompt,
+            // Reasoning models spend much of this budget thinking before they
+            // answer; too small a value returns an empty reply.
+            maxTokens: 2500,
+            extraHeaders: { "X-Title": "HireStella portfolio assistant" },
+          }),
+        ),
+      ),
   );
 }

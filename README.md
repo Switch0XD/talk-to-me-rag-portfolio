@@ -20,7 +20,7 @@ A mobile-first personal portfolio for Kuldeep Singh with a small-corpus RAG assi
 - **Vector store:** a checked-in JSON file with in-memory cosine similarity. For a corpus of about 64 chunks this avoids a database, a paid service and a network hop, and is still genuine embedding-based retrieval. A pgvector table would be the next step if the corpus grew into the thousands of chunks.
 - **Chunking:** heading-aware chunks of about 500 tokens with an 80-token overlap.
 - **Retrieval score:** cosine similarity, plus a small lexical boost for query terms found in a chunk, plus a larger boost when a distinctive name (an employer or project that appears in at most two section headings) matches a heading. FAQ entries that say “not documented” are penalised unless the question is about what their heading names. Chunks scoring below `0.32` are treated as irrelevant.
-- **Generation:** Gemini `gemini-3.5-flash-lite`, then `gemini-3.6-flash` on 429, 404 or 5xx, then Groq `openai/gpt-oss-20b`, then an OpenRouter free model (`OPENROUTER_MODEL`, default `openai/gpt-oss-20b:free`). Each provider is tried only if the previous one failed, and a provider without a key is skipped. A visitor sees an error only if every configured provider fails.
+- **Generation:** Gemini `gemini-3.5-flash-lite`, then `gemini-3.6-flash` on 429, 404 or 5xx, then Groq `openai/gpt-oss-20b`, then OpenRouter free models tried in order (`OPENROUTER_MODEL`, a comma-separated list; default `nvidia/nemotron-3-super-120b-a12b:free`, then `google/gemma-4-31b-it:free`). Each provider is tried only if the previous one failed, and a provider without a key is skipped. A visitor sees an error only if every configured provider fails.
 
 ## Refusal behaviour
 
