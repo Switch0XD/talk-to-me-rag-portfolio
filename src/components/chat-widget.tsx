@@ -69,8 +69,17 @@ export function ChatWidget({ firstName }: ChatWidgetProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: trimmed }),
       });
-      const data = (await request.json()) as ChatResponse & { error?: string };
-      if (!request.ok) throw new Error(data.error || GENERIC_ERROR);
+      // Read as text first: a crashed server function returns an empty body,
+      // and request.json() would surface that as a confusing parse error.
+      let data: (ChatResponse & { error?: string }) | null = null;
+      try {
+        data = JSON.parse(await request.text());
+      } catch {
+        data = null;
+      }
+      if (!request.ok || !data?.answer) {
+        throw new Error(data?.error || `The assistant is temporarily unavailable (error ${request.status}). Please try again shortly.`);
+      }
       addMessage({ role: "assistant", text: data.answer, tone: data.kind });
     } catch (caught) {
       addMessage({ role: "assistant", text: caught instanceof Error ? caught.message : GENERIC_ERROR, tone: "error" });
