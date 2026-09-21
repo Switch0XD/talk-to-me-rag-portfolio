@@ -84,13 +84,37 @@ function contextExplicitlyWithholdsTheFact(question: string, chunks: RagChunk[])
   });
 }
 
+function looksLikePortfolioQuestion(question: string): boolean {
+  const text = question.toLowerCase();
+  return /\b(?:kuldeep|portfolio|resume|cv|experience|career|job|jobs|company|companies|organisation|organizations|hims|trustdrive|developer|project|projects|skills|stack|backend|frontend|full[- ]stack|technology|technologies|framework|frameworks|work|worked|about)\b/i.test(text);
+}
+
+function generalKnowledgePrompt(question: string): string {
+  return `Answer the user's question directly with general knowledge. Keep it brief and factual. Do not claim to know Kuldeep's portfolio or resume unless the user explicitly asks about it.
+
+User question: ${question}`;
+}
+
+async function answerGeneralKnowledge(question: string, dependencies: ChatDependencies): Promise<ChatResponse> {
+  const response = await dependencies.generate(generalKnowledgePrompt(question));
+  return {
+    kind: "answer",
+    answer: response.answer,
+    citations: [],
+    model: response.model,
+  };
+}
+
 export async function answerPortfolioQuestion(
   question: string,
   index: RagIndex,
   dependencies: ChatDependencies = productionDependencies,
 ): Promise<ChatResponse> {
   if (!index.chunks.length) {
-    return { kind: "refusal", answer: REFUSAL, citations: [] };
+    if (looksLikePortfolioQuestion(question)) {
+      return { kind: "refusal", answer: REFUSAL, citations: [] };
+    }
+    return answerGeneralKnowledge(question, dependencies);
   }
 
   const retrievalQuery = buildRetrievalQuery(question);
@@ -98,6 +122,9 @@ export async function answerPortfolioQuestion(
   const matches = retrieve(index, queryEmbedding, 4, retrievalQuery);
   const bestScore = matches[0]?.score ?? 0;
   if (bestScore < relevanceThreshold()) {
+    if (!looksLikePortfolioQuestion(question)) {
+      return answerGeneralKnowledge(question, dependencies);
+    }
     return { kind: "refusal", answer: REFUSAL, citations: [] };
   }
 
@@ -105,6 +132,9 @@ export async function answerPortfolioQuestion(
     .map(({ chunk }, position) => `[${position + 1}] ${chunk.sourceTitle} — ${chunk.heading}\n${chunk.text}`)
     .join("\n\n");
   if (contextExplicitlyWithholdsTheFact(question, matches.map(({ chunk }) => chunk))) {
+    if (!looksLikePortfolioQuestion(question)) {
+      return answerGeneralKnowledge(question, dependencies);
+    }
     return { kind: "refusal", answer: REFUSAL, citations: [] };
   }
   const response = await dependencies.generate(groundedPrompt(question, context));

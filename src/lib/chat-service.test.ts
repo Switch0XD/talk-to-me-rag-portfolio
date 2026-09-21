@@ -36,17 +36,23 @@ describe("portfolio answer service", () => {
     expect(response.citations).toEqual([{ sourceId: "hims", title: "HIMS", heading: "Healthcare standard" }]);
   });
 
-  it("refuses before generation when no material is relevant", async () => {
+  it("falls back to general knowledge for simple non-portfolio questions", async () => {
     let generated = false;
-    const response = await answerPortfolioQuestion("What is the weather?", index, {
+    const response = await answerPortfolioQuestion("What is the weather in Paris?", index, {
       embedQuery: async () => [-1, 0],
-      generate: async () => {
+      generate: async (prompt) => {
         generated = true;
-        return { answer: "This should never run", model: "test-model" };
+        expect(prompt).toContain("User question: What is the weather in Paris?");
+        return { answer: "It is usually mild and sunny.", model: "test-model" };
       },
     });
-    expect(response).toEqual({ kind: "refusal", answer: REFUSAL, citations: [] });
-    expect(generated).toBe(false);
+    expect(response).toEqual({
+      kind: "answer",
+      answer: "It is usually mild and sunny.",
+      citations: [],
+      model: "test-model",
+    });
+    expect(generated).toBe(true);
   });
 
   it("refuses without generation when retrieved material explicitly says a fact is undocumented", async () => {
