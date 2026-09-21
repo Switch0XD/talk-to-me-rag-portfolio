@@ -8,9 +8,13 @@ function config() {
     groqModel: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
     vertexProject: process.env.VERTEX_AI_PROJECT || process.env.GOOGLE_CLOUD_PROJECT,
     vertexLocation: process.env.VERTEX_AI_LOCATION || process.env.GOOGLE_CLOUD_LOCATION || "us-central1",
+    vertexCredentialsFile: process.env.VERTEX_AI_CREDENTIALS_FILE,
     vertexCredentials: process.env.VERTEX_AI_CREDENTIALS,
   };
 }
+
+let cachedVertexClient: GoogleGenAI | undefined;
+let cachedVertexConfig: string | undefined;
 
 export class ProviderUnavailableError extends Error {
   constructor(message = "The AI service is temporarily unavailable.") {
@@ -18,6 +22,8 @@ export class ProviderUnavailableError extends Error {
     this.name = "ProviderUnavailableError";
   }
 }
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function client() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -28,13 +34,17 @@ function client() {
 }
 
 function vertexClient() {
-  const { vertexProject, vertexLocation, vertexCredentials } = config();
+  const { vertexProject, vertexLocation, vertexCredentialsFile, vertexCredentials } = config();
   if (!vertexProject) {
     throw new ProviderUnavailableError("Vertex embeddings require VERTEX_AI_PROJECT.");
   }
 
+  if (vertexCredentialsFile) {
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = vertexCredentialsFile;
+  }
+
   let credentials: Record<string, unknown> | undefined;
-  if (vertexCredentials) {
+  if (!vertexCredentialsFile && vertexCredentials) {
     try {
       credentials = JSON.parse(vertexCredentials) as Record<string, unknown>;
     } catch {
@@ -42,20 +52,25 @@ function vertexClient() {
     }
   }
 
-  return new GoogleGenAI({
+  const clientConfig = `${vertexProject}:${vertexLocation}:${vertexCredentialsFile || "inline"}`;
+  if (cachedVertexClient && cachedVertexConfig === clientConfig) return cachedVertexClient;
+
+  cachedVertexClient = new GoogleGenAI({
     vertexai: true,
     project: vertexProject,
     location: vertexLocation,
-    apiVersion: "v1",
     ...(credentials ? { googleAuthOptions: { credentials } } : {}),
   });
+  cachedVertexConfig = clientConfig;
+  return cachedVertexClient;
 }
 
 export function providerStatus(error: unknown): number | undefined {
   if (!error || typeof error !== "object") return undefined;
-  const candidate = error as { status?: unknown; response?: { status?: unknown } };
+  const candidate = error as { status?: unknown; response?: { status?: unknown }; error?: { code?: unknown } };
   if (typeof candidate.status === "number") return candidate.status;
   if (typeof candidate.response?.status === "number") return candidate.response.status;
+  if (typeof candidate.error?.code === "number") return candidate.error.code;
   return undefined;
 }
 
@@ -116,12 +131,59 @@ export async function embedText(text: string, taskType: "RETRIEVAL_DOCUMENT" | "
 
 export async function embedDocuments(texts: string[]): Promise<number[][]> {
   if (!texts.length) return [];
+  const model = config().embeddingModel;
+
+  // Batching 5 texts per call reduces total API invocations by 80%
+  const batchSize = 5;
   const vectors: number[][] = [];
-  for (const text of texts) {
-    // Vertex's Gemini embedding endpoint accepts one gemini-embedding-001 input
-    // at a time. Keeping this sequential also avoids bursting the free/shared quota.
-    vectors.push(await embedText(text, "RETRIEVAL_DOCUMENT"));
+
+  for (let index = 0; index < texts.length; index += batchSize) {
+    const batch = texts.slice(index, index + batchSize);
+
+    let attempts = 0;
+    let success = false;
+
+    while (!success && attempts < 8) {
+      try {
+        attempts++;
+        const response = await vertexClient().models.embedContent({
+          model,
+          contents: batch,
+          config: {
+            taskType: "RETRIEVAL_DOCUMENT",
+            outputDimensionality: 768,
+          },
+        });
+
+        const batchVectors = response.embeddings?.map((embedding) => embedding.values || []) || [];
+        if (!batchVectors.length || batchVectors.length !== batch.length) {
+          throw new ProviderUnavailableError("Vertex returned incomplete document embeddings.");
+        }
+
+        vectors.push(...batchVectors);
+        success = true;
+        console.log(
+          `Embedded chunks ${index + 1}–${Math.min(index + batchSize, texts.length)} of ${texts.length}`,
+        );
+      } catch (err: unknown) {
+        const status = providerStatus(err);
+        if (status === 429 && attempts < 8) {
+          // Back off by 5s, 10s, 20s... to let the RPM quota window recover
+          const waitTime = Math.max(5000, Math.pow(2, attempts) * 1500);
+          console.warn(`[Quota 429] Waiting ${waitTime / 1000}s before retrying batch...`);
+          await sleep(waitTime);
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    // Steady 3.5s cooldown between batches to stay under default Vertex RPM limits
+    if (index + batchSize < texts.length) {
+      await sleep(3500);
+    }
   }
+
   return vectors;
 }
 

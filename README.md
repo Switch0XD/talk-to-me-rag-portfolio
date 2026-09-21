@@ -6,7 +6,7 @@ A mobile-first personal portfolio for Kuldeep Singh with a genuine, small-corpus
 
 - **App and hosting:** Next.js App Router, TypeScript, Tailwind CSS, and Vercel Hobby.
 - **Generation:** Gemini `gemini-2.5-flash-lite`, retrying eligible 429/5xx requests with `gemini-2.5-flash`, then falling back to Groq `openai/gpt-oss-20b` for any remaining Gemini failure.
-- **Embeddings:** Vertex AI `gemini-embedding-001` at 768 dimensions.
+- **Embeddings:** Vertex AI `text-embedding-005` at 768 dimensions. This English text model accepts five document inputs per request, keeping the small-corpus ingestion practical under shared Vertex quota.
 - **Retrieval:** a checked-in JSON vector index with in-memory cosine similarity. It is appropriate for this roughly 5–8-page corpus, avoids a paid database, and remains genuine embedding-based RAG.
 - **Chunking:** heading-aware chunks of approximately 500 tokens with an 80-token overlap. The ingestion script is deliberately independent of the web build.
 
@@ -18,7 +18,7 @@ A mobile-first personal portfolio for Kuldeep Singh with a genuine, small-corpus
    npm install
    ```
 
-2. Copy `.env.example` to `.env.local`. Set `GEMINI_API_KEY`, `GROQ_API_KEY`, `VERTEX_AI_PROJECT`, and `VERTEX_AI_LOCATION`. For local ingestion, authenticate with `gcloud auth application-default login`; for Vercel, set `VERTEX_AI_CREDENTIALS` to one-line service-account JSON. Do not prefix secrets with `NEXT_PUBLIC_` or commit them.
+2. Copy `.env.example` to `.env.local`. Set `GEMINI_API_KEY`, `GROQ_API_KEY`, `VERTEX_AI_PROJECT`, and `VERTEX_AI_LOCATION`. For local ingestion, either authenticate with `gcloud auth application-default login` or set `VERTEX_AI_CREDENTIALS_FILE` to the ignored service-account JSON filename. For Vercel, set `VERTEX_AI_CREDENTIALS` to one-line service-account JSON. Do not prefix secrets with `NEXT_PUBLIC_` or commit them.
 
 3. Rebuild the index from the source documents:
 
